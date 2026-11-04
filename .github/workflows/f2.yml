@@ -1,0 +1,26 @@
+name: f2
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fetch
+        run: |
+          mkdir -p out
+          UA='research-bot/1.0'
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/api.php?action=query&list=logevents&letitle=Legume&lelimit=500&format=json' -o out/logevents.json
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=Wikipedia%3ACore%20content%20policies&rvstart=2022-11-30T23%3A59%3A59Z&rvend=2022-01-01T00%3A00%3A00Z&rvlimit=50&format=json' -o out/ccp_revs.json
+          OLDID=$(jq -r '.query.pages[] | .revisions[0].revid // "NONE"' out/ccp_revs.json)
+          echo "OLDID=$OLDID"
+          if [ "$OLDID" != "NONE" ] && [ -n "$OLDID" ]; then
+            curl -sS -A "$UA" "https://en.wikipedia.org/w/index.php?title=Wikipedia%3ACore_content_policies&oldid=$OLDID&action=raw" -o out/ccp_2022_raw.txt
+          fi
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/index.php?title=Wikipedia%3ANo_original_research&action=raw' -o out/nor_raw.txt
+          echo '=== logevents head ==='
+          head -c 1200 out/logevents.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wiki-evidence
+          path: out/
