@@ -1,0 +1,36 @@
+name: fetch-wiki-evidence
+on:
+  workflow_dispatch:
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fetch
+        run: |
+          set -e
+          mkdir -p out
+          UA='research-bot/1.0 (one-shot evidence fetch)'
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/api.php?action=query&list=logevents&letitle=Legume&lelimit=500&format=json' -o out/logevents.json
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=Wikipedia%3ACore%20content%20policies&rvstart=2022-11-30T23:59:59Z&rvend=2022-01-01T00:00:00Z&rvlimit=50&format=json' -o out/ccp_revs.json
+          OLDID=$(python3 -c "
+import json
+d=json.load(open('out/ccp_revs.json'))
+pages=d['query']['pages']
+p=list(pages.values())[0]
+revs=p.get('revisions',[])
+if revs:
+    print(revs[0]['revid'])
+else:
+    print('NONE')
+")
+          echo "OLDID=$OLDID" >> "$GITHUB_ENV"
+          if [ "$OLDID" != "NONE" ]; then
+            curl -sS -A "$UA" "https://en.wikipedia.org/w/index.php?title=Wikipedia:Core_content_policies&oldid=$OLDID&action=raw" -o out/ccp_2022_raw.txt
+          fi
+          curl -sS -A "$UA" 'https://en.wikipedia.org/w/index.php?title=Wikipedia:No_original_research&action=raw' -o out/nor_raw.txt || true
+          echo '=== logevents head ==='
+          head -c 1500 out/logevents.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wiki-evidence
+          path: out/
